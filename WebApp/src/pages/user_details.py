@@ -19,8 +19,38 @@ TABLE_HEADERS = [
 ]
 
 
-def calculate_warning_level(response_times: list[float]) -> Tuple[str, str, str]:
-    """Calculate warning level based on average response time"""
+def evaluate_game_score(level_reached: int, response_times: list[float]) -> float:
+    """
+    Evaluate a single gameplay session score (0-100).
+
+    Scoring breakdown:
+    - Level performance: 70% weight (level / 11 max)
+    - Response time performance: 30% weight (faster = higher score)
+    """
+    valid_times = [t for t in response_times if t > 0]
+
+    # Level component (70% weight) - max level is ~11
+    MAX_LEVEL = 11
+    level_score = min((level_reached / MAX_LEVEL) * 70, 70)
+
+    # Response time component (30% weight)
+    if valid_times:
+        avg_response = statistics.mean(valid_times)
+        if avg_response <= 0.3:
+            response_score = 30
+        elif avg_response >= 2.0:
+            response_score = 0
+        else:
+            # Linear interpolation between 0.3s (30pts) and 2.0s (0pts)
+            response_score = 30 * (1 - (avg_response - 0.3) / 1.7)
+    else:
+        response_score = 0
+
+    return level_score + response_score
+
+
+def calculate_warning_level(response_times: list[float], level_reached: int = 0) -> Tuple[str, str, str]:
+    """Calculate warning level based on game score (combining level and response time)"""
     if not response_times:
         return "N/A", "text-gray-400 bg-gray-100", "No Time"
 
@@ -32,12 +62,19 @@ def calculate_warning_level(response_times: list[float]) -> Tuple[str, str, str]
         avg_time = statistics.mean(valid_times)
         avg_time_str = f"{avg_time:.3f}s"
 
-        GOOD_THRESHOLD = 0.50
-        NORMAL_THRESHOLD = 1.50
+        # Calculate score using both level and response time
+        score = evaluate_game_score(level_reached, response_times)
 
-        if avg_time <= GOOD_THRESHOLD:
+        # Scoring thresholds:
+        # - Good: score >= 55 (6+ levels with decent response time easily achieves this)
+        # - Normal: score >= 35
+        # - Bad: score < 35
+        GOOD_THRESHOLD = 55
+        NORMAL_THRESHOLD = 35
+
+        if score >= GOOD_THRESHOLD:
             return "Good", "text-green-700 bg-green-100 font-semibold", avg_time_str
-        elif avg_time <= NORMAL_THRESHOLD:
+        elif score >= NORMAL_THRESHOLD:
             return "Normal", "text-yellow-700 bg-yellow-100 font-semibold", avg_time_str
         else:
             return "Bad", "text-red-700 bg-red-100 font-semibold", avg_time_str
@@ -114,9 +151,9 @@ def render_response_times_cell(response_times: list[float]):
         ui.label(f"Avg: {avg_time:.2f}s").classes("text-xs text-gray-500")
 
 
-def render_warning_level_cell(response_times: list[float]):
+def render_warning_level_cell(response_times: list[float], level_reached: int = 0):
     """Render warning level status badge"""
-    status, status_class, avg_time_str = calculate_warning_level(response_times)
+    status, status_class, avg_time_str = calculate_warning_level(response_times, level_reached)
 
     with ui.element('div').classes("flex items-center gap-2"):
         with ui.element('div').classes(f"text-sm py-1.5 px-3 rounded-full {status_class}").style("min-width: 80px; text-align: center;"):
@@ -148,7 +185,7 @@ def render_gameplay_row(index: int, play: GamePlay):
                     render_response_times_cell(play.response_times_seconds)
 
                 elif field_name == 'warning_level':
-                    render_warning_level_cell(play.response_times_seconds)
+                    render_warning_level_cell(play.response_times_seconds, play.level_reached)
 
 
 def render_gameplay_table(plays: list[GamePlay]):

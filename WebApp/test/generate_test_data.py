@@ -3,7 +3,8 @@ import random
 import time
 
 # Server URL
-SERVER_URL = "http://127.0.0.1:8000/device/"
+# SERVER_URL = "https://ece198-performance-monitoring-game.onrender.com/device/"
+SERVER_URL = "http://localhost:8000/device/"
 
 # Yiran's device ID
 DEVICE_ID = "78:1C:3C:2B:96:A4"
